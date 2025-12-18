@@ -57,6 +57,7 @@ router.get("/:id", function (req, res) {
       gender: user.gender || "Chưa cập nhật",
       dob: user.dob || "Chưa cập nhật",
       avatar: avatar,
+      role_id: user.role_id,
       // KHÔNG trả về mật khẩu ở đây
     };
 
