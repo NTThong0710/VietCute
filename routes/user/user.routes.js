@@ -4,7 +4,7 @@ const db = require("../../DB");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const bcrypt = require("bcrypt"); /
+const bcrypt = require("bcrypt"); 
 
 // Config multer cho upload avatar
 const storage = multer.diskStorage({
