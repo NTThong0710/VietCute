@@ -4,6 +4,7 @@ const db = require("../../DB");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const bcrypt = require("bcrypt"); /
 
 // Config multer cho upload avatar
 const storage = multer.diskStorage({
@@ -19,7 +20,7 @@ const upload = multer({ storage });
 
 // ==================== USER PROFILE ROUTES ====================
 
-// Lấy danh sách users
+// Lấy danh sách users (Lưu ý: Không nên trả về cột mật khẩu ở đây)
 router.get("/", function (req, res) {
   let sql = `SELECT * FROM users`;
   db.query(sql, (err, data) => {
@@ -56,17 +57,19 @@ router.get("/:id", function (req, res) {
       gender: user.gender || "Chưa cập nhật",
       dob: user.dob || "Chưa cập nhật",
       avatar: avatar,
+      // KHÔNG trả về mật khẩu ở đây
     };
 
     res.json({ user: userData });
   });
 });
 
-// Cập nhật thông tin user
+// Cập nhật thông tin user (GIỮ NGUYÊN - Không đụng đến password ở route này)
 router.put("/:id", function (req, res) {
   const userId = req.params.id;
   let { ten_user, sdt_user, email_user, address, gender, dob } = req.body;
 
+  // Xử lý dữ liệu rỗng
   ten_user = ten_user || "";
   sdt_user = sdt_user || "";
   email_user = email_user || "";
@@ -105,7 +108,41 @@ router.put("/:id", function (req, res) {
   );
 });
 
-// Upload avatar
+// ==================================================================
+// 2. ROUTE MỚI: ĐỔI MẬT KHẨU (CÓ HASH)
+// ==================================================================
+router.put("/change-password/:id", async (req, res) => {
+  const userId = req.params.id;
+  const { newPassword } = req.body;
+
+  if (!newPassword) {
+    return res.status(400).json({ thongbao: "Vui lòng nhập mật khẩu mới" });
+  }
+
+  try {
+    // Tạo salt (muối) để tăng độ bảo mật
+    const salt = await bcrypt.genSalt(10);
+    // Hash mật khẩu
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    const sql = `UPDATE users SET pass_user = ? WHERE id_user = ?`;
+
+    db.query(sql, [hashedPassword, userId], (err, result) => {
+      if (err) {
+        return res.status(500).json({ thongbao: "Lỗi database", err });
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ thongbao: "Người dùng không tồn tại" });
+      }
+      res.json({ thongbao: "Đổi mật khẩu thành công!" });
+    });
+
+  } catch (error) {
+    return res.status(500).json({ thongbao: "Lỗi khi mã hóa mật khẩu", error });
+  }
+});
+
+// Upload avatar (GIỮ NGUYÊN)
 router.post("/:id_user/avatar", upload.single("avatar"), (req, res) => {
   const userId = req.params.id_user;
   const avatarFile = req.file;
@@ -142,9 +179,12 @@ router.post("/:id_user/avatar", upload.single("avatar"), (req, res) => {
 
       if (oldAvatarPath) {
         const oldAvatarFullPath = path.join(__dirname, "../../", oldAvatarPath);
-        fs.unlink(oldAvatarFullPath, (unlinkErr) => {
-          if (unlinkErr) console.error("Không xóa được file cũ:", unlinkErr);
-        });
+        // Kiểm tra file cũ có tồn tại không trước khi xóa để tránh lỗi
+        if (fs.existsSync(oldAvatarFullPath)) {
+             fs.unlink(oldAvatarFullPath, (unlinkErr) => {
+                if (unlinkErr) console.error("Không xóa được file cũ:", unlinkErr);
+             });
+        }
       }
 
       res.status(200).json({
